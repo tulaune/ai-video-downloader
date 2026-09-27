@@ -9,6 +9,7 @@ from server.app.pipeline import DEFAULT_PIPELINE_STAGES, PipelineCoordinator, Pi
 from server.app.security import ProviderCredentials
 from server.app.domain.models import Voice
 
+
 class JobManager:
     def __init__(
         self,
@@ -17,6 +18,7 @@ class JobManager:
         coordinator_factory=None,
         repository: JobRepository | None = None,
         workspace_base: Path | str = "/tmp/jobs",
+        workspace_ttl_seconds: float = 3600,
     ):
         self.repository = repository or JobRepository()
         if coordinator is None and coordinator_factory is None:
@@ -24,6 +26,9 @@ class JobManager:
         self.coordinator = coordinator
         self.coordinator_factory = coordinator_factory
         self.workspace_base = Path(workspace_base)
+        if workspace_ttl_seconds < 0:
+            raise ValueError("workspace_ttl_seconds must be non-negative")
+        self.workspace_ttl_seconds = workspace_ttl_seconds
         self._pending: dict[str, tuple[VideoSource, JobWorkspace, tuple[JobStage, ...], str, PipelineCoordinator, ProviderCredentials | None, Voice | None, dict]] = {}
         self._cancel_events: dict[str, asyncio.Event] = {}
 
@@ -36,6 +41,10 @@ class JobManager:
         voice: Voice | None = None,
         options: dict | None = None,
     ) -> Job:
+        JobWorkspace.cleanup_stale(
+            self.workspace_base,
+            ttl_seconds=self.workspace_ttl_seconds,
+        )
         job_id = secrets.token_urlsafe(18)
         now = datetime.now(timezone.utc)
         job = Job(id=job_id, created_at=now, updated_at=now)
@@ -58,6 +67,15 @@ class JobManager:
         )
         self._cancel_events[job_id] = asyncio.Event()
         return job
+
+    def cleanup_stale_workspaces(self, *, now: float | None = None) -> int:
+        """Remove abandoned job workspaces while preserving recent artifacts."""
+
+        return JobWorkspace.cleanup_stale(
+            self.workspace_base,
+            ttl_seconds=self.workspace_ttl_seconds,
+            now=now,
+        )
 
     async def run(self, job_id: str) -> Job:
         pending = self._pending.get(job_id)
