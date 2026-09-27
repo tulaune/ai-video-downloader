@@ -100,3 +100,6 @@ Container runtime attempt:
   Python dependency installation, and Playwright browser download, then the
   Podman server returned `unexpected EOF` when the host reached 133 MiB free.
   The temporary VM was removed afterward; no image ID is claimed.
+- The Dockerfile now makes the optional Chromium download explicit through
+  `INSTALL_PLAYWRIGHT_BROWSER=true`; the default API image keeps the Python
+  Playwright seam without forcing the crawler browser layer.

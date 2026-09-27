@@ -7,6 +7,10 @@ The local API smoke check is separate from this experiment: it verifies the
 FastAPI process and OpenAPI surface, but it is not evidence that the container
 image builds or that Cloud Run can execute it.
 
+The default image omits the large Chromium browser download. Build with
+`--build-arg INSTALL_PLAYWRIGHT_BROWSER=true` only for a crawler-enabled
+revision; the API/provider/media smoke image does not need that browser layer.
+
 Replace the image placeholders in `service.yaml.template`, then deploy only
 after the owner approves the Google Cloud project, billing, APIs, Artifact
 Registry repository, and service account.

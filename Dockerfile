@@ -7,13 +7,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_PLAYWRIGHT_BROWSER=false
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /app/backend/requirements.txt
 RUN pip install -r /app/backend/requirements.txt \
-    && playwright install --with-deps chromium
+    && if [ "$INSTALL_PLAYWRIGHT_BROWSER" = "true" ]; then \
+         playwright install --with-deps chromium; \
+       fi
 
 COPY backend /app/backend
 COPY server /app/server
