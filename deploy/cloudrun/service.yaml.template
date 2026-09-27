@@ -1,0 +1,29 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: velingo-phase0
+  labels:
+    phase: "0"
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: 900
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/velingo-phase0:TAG
+          ports:
+            - name: http1
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: VELINGO_VERSION
+              value: "phase0-experiment"
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
