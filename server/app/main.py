@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI
 
+from server.app.api.sources import router as sources_router
 
 SERVICE_VERSION = os.environ.get("VELINGO_VERSION", "0.1.0-dev")
 
@@ -10,6 +11,7 @@ app = FastAPI(
     version=SERVICE_VERSION,
     description="Backend foundation for Velingo media processing jobs.",
 )
+app.include_router(sources_router)
 
 
 @app.get("/health", tags=["system"])
