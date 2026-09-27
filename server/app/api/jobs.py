@@ -19,7 +19,7 @@ def _build_phase0_coordinator(credentials: ProviderCredentials | None) -> Pipeli
         downloader=SingleVideoDownloader(),
         transcriber=FasterWhisperProvider(),
         translator=OpenAICompatibleTranslationProvider(request_credentials),
-        tts=VbeeProvider(),
+        tts=VbeeProvider(credentials=credentials if credentials and credentials.provider == "vbee" else None),
     )
     return PipelineCoordinator(build_phase0_handlers(services))
 
