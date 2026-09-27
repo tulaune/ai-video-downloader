@@ -60,3 +60,29 @@ source remain separate Phase 0 tasks.
   entrypoint.
 - No live Douyin/provider request was run in this baseline because it would
   require external access, cookies, or provider credentials.
+
+## Phase 0 implementation evidence
+
+The Phase 0 branch now contains the FastAPI service, normalized domain and
+provider contracts, isolated job workspaces, stage-aware pipeline, Dockerfile,
+and Cloud Run experiment template. The local suite has 55 passing tests; two
+real-provider checks are opt-in and skipped by default.
+
+Verified locally after the Phase 0 implementation:
+
+- `backend/.venv/bin/python -m pytest -q`: 55 passed, 2 skipped, 1 known
+  Starlette/httpx deprecation warning.
+- A real `FasterWhisperProvider(model="tiny")` run completed against a
+  0.5-second generated fixture without Claude orchestration or provider keys.
+- Uvicorn smoke: `/health` returned 200 and `/openapi.json` exposed the six
+  expected Phase 0 routes.
+- Artifact reuse was exercised by rerunning the merge stage from contained
+  existing source/audio artifacts.
+
+Still pending before the Phase 0 gate:
+
+- Run the opt-in Vbee integration check with owner-configured credentials.
+- Build and run the Docker image; Docker/Podman is not installed on the local
+  host used for this audit.
+- Deploy the Cloud Run experiment and record the benchmark; this requires the
+  owner checkpoint for project, billing, APIs, and credentials.

@@ -3,6 +3,10 @@
 This directory contains configuration only. It does not deploy anything and
 contains no provider credentials.
 
+The local API smoke check is separate from this experiment: it verifies the
+FastAPI process and OpenAPI surface, but it is not evidence that the container
+image builds or that Cloud Run can execute it.
+
 Replace the image placeholders in `service.yaml.template`, then deploy only
 after the owner approves the Google Cloud project, billing, APIs, Artifact
 Registry repository, and service account.
