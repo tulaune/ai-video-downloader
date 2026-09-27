@@ -65,12 +65,12 @@ source remain separate Phase 0 tasks.
 
 The Phase 0 branch now contains the FastAPI service, normalized domain and
 provider contracts, isolated job workspaces, stage-aware pipeline, Dockerfile,
-and Cloud Run experiment template. The local suite has 55 passing tests; two
+and Cloud Run experiment template. The local suite has 57 passing tests; two
 real-provider checks are opt-in and skipped by default.
 
 Verified locally after the Phase 0 implementation:
 
-- `backend/.venv/bin/python -m pytest -q`: 55 passed, 2 skipped, 1 known
+- `backend/.venv/bin/python -m pytest -q`: 57 passed, 2 skipped, 1 known
   Starlette/httpx deprecation warning.
 - A real `FasterWhisperProvider(model="tiny")` run completed against a
   0.5-second generated fixture without Claude orchestration or provider keys.
