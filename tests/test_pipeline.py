@@ -98,3 +98,36 @@ def test_pipeline_marks_unimplemented_stage_without_stack_trace(tmp_path):
         "user_message": "Stage merging chưa được triển khai.",
         "retryable": False,
     }
+
+
+def test_pipeline_honors_cancellation_between_stages(tmp_path):
+    import asyncio
+
+    cancel_event = asyncio.Event()
+    events = []
+
+    async def acquire(context):
+        events.append(JobStage.ACQUIRING)
+        cancel_event.set()
+
+    async def transcribe(context):
+        events.append(JobStage.TRANSCRIBING)
+
+    workspace = JobWorkspace.create(tmp_path)
+    try:
+        result = asyncio.run(
+            PipelineCoordinator({
+                JobStage.ACQUIRING: acquire,
+                JobStage.TRANSCRIBING: transcribe,
+            }).run(
+                _source(),
+                workspace,
+                requested_stages=(JobStage.ACQUIRING, JobStage.TRANSCRIBING),
+                cancel_event=cancel_event,
+            )
+        )
+    finally:
+        workspace.cleanup()
+
+    assert events == [JobStage.ACQUIRING]
+    assert result.job.state == JobState.CANCELLED

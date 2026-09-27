@@ -1,4 +1,5 @@
 import secrets
+import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
@@ -56,6 +57,7 @@ class PipelineCoordinator:
         target_language: str = "vi",
         credentials: ProviderCredentials | None = None,
         job_id: str | None = None,
+        cancel_event: asyncio.Event | None = None,
     ) -> PipelineResult:
         stages = self._validate_stages(requested_stages)
         now = datetime.now(timezone.utc)
@@ -79,6 +81,8 @@ class PipelineCoordinator:
             ))
 
         for index, stage in enumerate(stages):
+            if cancel_event and cancel_event.is_set():
+                return self._cancelled(job, context)
             job = job.model_copy(update={
                 "state": JobState.RUNNING,
                 "current_stage": stage,
@@ -132,3 +136,18 @@ class PipelineCoordinator:
             "artifacts": context.artifacts,
         })
         return PipelineResult(job=failed, context=context)
+
+    @staticmethod
+    def _cancelled(job: Job, context: PipelineContext) -> PipelineResult:
+        cancelled = job.model_copy(update={
+            "state": JobState.CANCELLED,
+            "updated_at": datetime.now(timezone.utc),
+            "error": {
+                "stage": job.current_stage.value if job.current_stage else "pipeline",
+                "error_code": "job_cancelled",
+                "user_message": "Job đã được huỷ.",
+                "retryable": False,
+            },
+            "artifacts": context.artifacts,
+        })
+        return PipelineResult(job=cancelled, context=context)
