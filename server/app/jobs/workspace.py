@@ -1,6 +1,7 @@
 import re
 import secrets
 import shutil
+import time
 from pathlib import Path
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -35,7 +36,39 @@ class JobWorkspace:
             raise ValueError("path escapes job workspace")
         return candidate
 
+    def size_bytes(self) -> int:
+        total = 0
+        for path in self.root.rglob("*"):
+            if path.is_file() and not path.is_symlink():
+                total += path.stat().st_size
+        return total
+
+    def artifact_size(self, path: Path | str) -> int:
+        candidate = Path(path).resolve()
+        if candidate.parent != self.root or not candidate.is_file():
+            raise ValueError("artifact must be a direct file in the job workspace")
+        return candidate.stat().st_size
+
     def cleanup(self) -> None:
         if self.root.parent != self.base_dir or self.root == self.base_dir:
             raise ValueError("Refusing to clean workspace outside its base directory")
         shutil.rmtree(self.root, ignore_errors=False)
+
+    @classmethod
+    def cleanup_stale(
+        cls,
+        base_dir: Path | str = "/tmp/jobs",
+        *,
+        ttl_seconds: float,
+        now: float | None = None,
+    ) -> int:
+        base = Path(base_dir).expanduser().resolve()
+        if not base.is_dir() or ttl_seconds < 0:
+            return 0
+        cutoff = (time.time() if now is None else now) - ttl_seconds
+        removed = 0
+        for child in base.iterdir():
+            if child.is_dir() and not child.is_symlink() and child.stat().st_mtime < cutoff:
+                cls(child, base).cleanup()
+                removed += 1
+        return removed

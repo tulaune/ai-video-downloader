@@ -1,3 +1,5 @@
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -31,3 +33,15 @@ def test_job_workspace_path_is_inside_root(tmp_path):
         assert Path(workspace.path("video.mp4")).parent == workspace.root
     finally:
         workspace.cleanup()
+
+
+def test_job_workspace_accounts_bytes_and_cleans_stale_children(tmp_path):
+    workspace = JobWorkspace.create(tmp_path, job_id="old-job")
+    artifact = workspace.path("source.mp4")
+    artifact.write_bytes(b"12345")
+    assert workspace.artifact_size(artifact) == 5
+    assert workspace.size_bytes() == 5
+    os.utime(workspace.root, (time.time() - 100, time.time() - 100))
+
+    assert JobWorkspace.cleanup_stale(tmp_path, ttl_seconds=10) == 1
+    assert not workspace.root.exists()
