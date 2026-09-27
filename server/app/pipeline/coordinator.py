@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
-from server.app.domain.models import Artifact, Job, JobStage, JobState, Transcript, VideoSource
+from server.app.domain.models import Artifact, Job, JobStage, JobState, Transcript, VideoSource, Voice
 from server.app.jobs import JobWorkspace
 from server.app.security import ProviderCredentials, ServiceError
 
@@ -31,6 +31,8 @@ class PipelineContext:
     artifacts: list[Artifact] = field(default_factory=list)
     transcript: Transcript | None = None
     translated_transcript: Transcript | None = None
+    voice: Voice | None = None
+    options: dict[str, Any] = field(default_factory=dict)
 
     def add_artifact(self, artifact: Artifact) -> None:
         self.artifacts.append(artifact)
@@ -58,6 +60,8 @@ class PipelineCoordinator:
         credentials: ProviderCredentials | None = None,
         job_id: str | None = None,
         cancel_event: asyncio.Event | None = None,
+        voice: Voice | None = None,
+        options: dict[str, Any] | None = None,
     ) -> PipelineResult:
         stages = self._validate_stages(requested_stages)
         now = datetime.now(timezone.utc)
@@ -72,6 +76,8 @@ class PipelineCoordinator:
             workspace=workspace,
             target_language=target_language,
             credentials=credentials,
+            voice=voice,
+            options=dict(options or {}),
         )
         if not stages:
             return self._failed(job, context, ServiceError(

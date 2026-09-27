@@ -4,12 +4,27 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from server.app.domain.models import Artifact, Job, JobStage, JobState, VideoSource
+from server.app.domain.models import Artifact, Job, JobStage, JobState, VideoSource, Voice
+from server.app.downloader import SingleVideoDownloader
 from server.app.jobs.manager import JobManager
 from server.app.pipeline import DEFAULT_PIPELINE_STAGES, PipelineCoordinator
+from server.app.pipeline.stages import Phase0StageServices, build_phase0_handlers
+from server.app.providers import FasterWhisperProvider, OpenAICompatibleTranslationProvider, VbeeProvider
+from server.app.security import ProviderCredentials
 
 router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
-job_manager = JobManager(PipelineCoordinator({}))
+def _build_phase0_coordinator(credentials: ProviderCredentials | None) -> PipelineCoordinator:
+    request_credentials = credentials or ProviderCredentials(provider="openai", fields={})
+    services = Phase0StageServices(
+        downloader=SingleVideoDownloader(),
+        transcriber=FasterWhisperProvider(),
+        translator=OpenAICompatibleTranslationProvider(request_credentials),
+        tts=VbeeProvider(),
+    )
+    return PipelineCoordinator(build_phase0_handlers(services))
+
+
+job_manager = JobManager(coordinator_factory=_build_phase0_coordinator)
 
 
 class CreateJobRequest(BaseModel):
@@ -18,6 +33,8 @@ class CreateJobRequest(BaseModel):
     source: VideoSource
     requested_stages: list[JobStage] = Field(default_factory=lambda: list(DEFAULT_PIPELINE_STAGES))
     target_language: str = "vi"
+    credentials: ProviderCredentials | None = None
+    voice: Voice | None = None
 
 
 class ArtifactSummary(BaseModel):
@@ -70,6 +87,8 @@ async def create_job(request: CreateJobRequest, background_tasks: BackgroundTask
         request.source,
         tuple(request.requested_stages),
         request.target_language,
+        credentials=request.credentials,
+        voice=request.voice,
     )
     background_tasks.add_task(job_manager.run, job.id)
     return _summary(job)
