@@ -96,3 +96,7 @@ Container runtime attempt:
 - Docker Desktop installation was also attempted, but Homebrew received a
   corrupt/truncated Docker archive. No image build result is claimed from
   these runtime failures.
+- A rootful Podman build later reached the complete Debian/FFmpeg layer,
+  Python dependency installation, and Playwright browser download, then the
+  Podman server returned `unexpected EOF` when the host reached 133 MiB free.
+  The temporary VM was removed afterward; no image ID is claimed.
