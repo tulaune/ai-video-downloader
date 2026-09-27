@@ -1,4 +1,5 @@
 import ipaddress
+import socket
 from urllib.parse import urlsplit
 
 from .errors import ServiceError
@@ -34,7 +35,24 @@ def validate_public_http_url(value: str) -> str:
         address = ipaddress.ip_address(hostname)
     except ValueError:
         address = None
-    if address and (address.is_private or address.is_loopback or address.is_link_local or address.is_reserved):
+    addresses = [address] if address else []
+    if not address:
+        try:
+            addresses = [
+                ipaddress.ip_address(info[4][0])
+                for info in socket.getaddrinfo(hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+            ]
+        except socket.gaierror as error:
+            raise ServiceError(
+                stage="analyzing",
+                error_code="host_resolution_failed",
+                user_message="Không thể xác minh nguồn video.",
+                retryable=True,
+            ) from error
+    if any(
+        item.is_private or item.is_loopback or item.is_link_local or item.is_reserved
+        for item in addresses
+    ):
         raise ServiceError(
             stage="analyzing",
             error_code="private_url_not_allowed",

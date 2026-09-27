@@ -1,4 +1,5 @@
 import json
+import socket
 
 import pytest
 
@@ -30,3 +31,15 @@ def test_validate_public_http_url_rejects_unsafe_urls(url):
 
 def test_validate_public_http_url_accepts_supported_public_url():
     assert validate_public_http_url("https://www.douyin.com/video/123") == "https://www.douyin.com/video/123"
+
+
+def test_validate_public_http_url_rejects_hostname_resolving_private(monkeypatch):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443))],
+    )
+
+    with pytest.raises(ServiceError) as exc_info:
+        validate_public_http_url("https://video.example.test/source")
+    assert exc_info.value.error_code == "private_url_not_allowed"
