@@ -1,6 +1,7 @@
 import asyncio
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -42,7 +43,7 @@ class FixtureDownloader:
             reference=str(destination),
             mime_type="video/mp4",
             size=destination.stat().st_size,
-            created_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+            created_at=datetime.now(timezone.utc),
         )
 
 

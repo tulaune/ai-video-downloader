@@ -2,7 +2,7 @@ import secrets
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Sequence
 
 from server.app.domain.models import Artifact, Job, JobStage, JobState, Transcript, VideoSource, Voice
 from server.app.jobs import JobWorkspace
@@ -62,6 +62,7 @@ class PipelineCoordinator:
         cancel_event: asyncio.Event | None = None,
         voice: Voice | None = None,
         options: dict[str, Any] | None = None,
+        existing_artifacts: Sequence[Artifact] = (),
     ) -> PipelineResult:
         stages = self._validate_stages(requested_stages)
         now = datetime.now(timezone.utc)
@@ -71,14 +72,26 @@ class PipelineCoordinator:
             created_at=now,
             updated_at=now,
         )
+        seeded_artifacts = list(existing_artifacts)
         context = PipelineContext(
             source=source,
             workspace=workspace,
             target_language=target_language,
             credentials=credentials,
+            artifacts=seeded_artifacts,
             voice=voice,
             options=dict(options or {}),
         )
+        try:
+            for artifact in seeded_artifacts:
+                workspace.artifact_size(artifact.reference)
+        except (OSError, ValueError) as error:
+            return self._failed(job, context, ServiceError(
+                stage="pipeline",
+                error_code="invalid_existing_artifact",
+                user_message="Artifact dùng để chạy lại không hợp lệ.",
+                technical_message=str(error),
+            ))
         if not stages:
             return self._failed(job, context, ServiceError(
                 stage="pipeline",
