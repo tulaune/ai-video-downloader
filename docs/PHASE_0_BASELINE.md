@@ -78,12 +78,14 @@ Verified locally after the Phase 0 implementation:
   expected Phase 0 routes.
 - Artifact reuse was exercised by rerunning the merge stage from contained
   existing source/audio artifacts.
+- Default container verification passed with Podman rootful AppleHV: image
+  digest `bed4643bbc5804ce8ad7a3e632c614726c4784e3331e5680d6d002322a62839f`,
+  image size `1,131,101,602` bytes, `/health` HTTP 200, OpenAPI route smoke,
+  and a job POST/GET smoke with secret-free response and logs.
 
 Still pending before the Phase 0 gate:
 
 - Run the opt-in Vbee integration check with owner-configured credentials.
-- Build and run the Docker image; Docker/Podman is not installed on the local
-  host used for this audit.
 - Deploy the Cloud Run experiment and record the benchmark; this requires the
   owner checkpoint for project, billing, APIs, and credentials.
 
@@ -96,10 +98,9 @@ Container runtime attempt:
 - Docker Desktop installation was also attempted, but Homebrew received a
   corrupt/truncated Docker archive. No image build result is claimed from
   these runtime failures.
-- A rootful Podman build later reached the complete Debian/FFmpeg layer,
-  Python dependency installation, and Playwright browser download, then the
-  Podman server returned `unexpected EOF` when the host reached 133 MiB free.
-  The temporary VM was removed afterward; no image ID is claimed.
+- A crawler-enabled Chromium build previously reached the Playwright browser
+  layer but exhausted host disk. The default non-Chromium image now builds and
+  runs successfully; the temporary VM/container were removed after smoke.
 - The Dockerfile now makes the optional Chromium download explicit through
   `INSTALL_PLAYWRIGHT_BROWSER=true`; the default API image keeps the Python
   Playwright seam without forcing the crawler browser layer.
