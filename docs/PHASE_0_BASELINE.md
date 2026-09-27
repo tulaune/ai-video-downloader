@@ -86,3 +86,13 @@ Still pending before the Phase 0 gate:
   host used for this audit.
 - Deploy the Cloud Run experiment and record the benchmark; this requires the
   owner checkpoint for project, billing, APIs, and credentials.
+
+Container runtime attempt:
+
+- Podman 6.1.2 was installed successfully.
+- The rootless AppleHV machine entered guest emergency mode at
+  `ignition-files.service`; a rootful AppleHV retry booted briefly but exited
+  before exposing a working Podman socket.
+- Docker Desktop installation was also attempted, but Homebrew received a
+  corrupt/truncated Docker archive. No image build result is claimed from
+  these runtime failures.
