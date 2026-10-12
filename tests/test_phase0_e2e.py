@@ -11,6 +11,7 @@ from server.app.jobs import JobWorkspace
 from server.app.media import extract_audio
 from server.app.pipeline import PipelineCoordinator
 from server.app.pipeline.stages import Phase0StageServices, build_phase0_handlers
+from server.app.providers import FasterWhisperProvider, LocalMockTranslationProvider, LocalMockTtsProvider
 
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
@@ -110,6 +111,7 @@ def test_local_pipeline_runs_without_claude_or_network(tmp_path):
                 workspace,
                 requested_stages=(
                     JobStage.ACQUIRING,
+                    JobStage.EXTRACTING_AUDIO,
                     JobStage.TRANSCRIBING,
                     JobStage.TRANSLATING,
                     JobStage.GENERATING_SUBTITLE,
@@ -123,6 +125,44 @@ def test_local_pipeline_runs_without_claude_or_network(tmp_path):
         assert result.job.state.value == "completed"
         assert Path(final_artifact.reference).is_file()
         assert Path(final_artifact.reference).stat().st_size > 0
+        assert any(a.type == ArtifactType.SOURCE_AUDIO and a.size and a.size > 0 for a in result.job.artifacts)
         assert (workspace.root / "subtitle.srt").read_text(encoding="utf-8").startswith("1\n")
+    finally:
+        workspace.cleanup()
+
+
+def test_local_pipeline_runs_real_tiny_whisper_with_mock_providers(tmp_path):
+    source_path = tmp_path / "real-whisper-fixture.mp4"
+    _make_video(source_path)
+    workspace = JobWorkspace.create(tmp_path, job_id="real-whisper-job")
+    try:
+        services = Phase0StageServices(
+            downloader=FixtureDownloader(source_path),
+            transcriber=FasterWhisperProvider(model="tiny"),
+            translator=LocalMockTranslationProvider(),
+            tts=LocalMockTtsProvider(),
+            voice=Voice(provider="local-mock-tts", voice_id="fixture", display_name="Fixture"),
+        )
+        result = asyncio.run(PipelineCoordinator(build_phase0_handlers(services)).run(
+            VideoSource(url="https://fixture.example/video/real-whisper", platform="fixture", source_id="fixture"),
+            workspace,
+            requested_stages=(
+                JobStage.ACQUIRING, JobStage.EXTRACTING_AUDIO, JobStage.TRANSCRIBING,
+                JobStage.TRANSLATING, JobStage.GENERATING_SUBTITLE,
+                JobStage.GENERATING_TTS, JobStage.MERGING, JobStage.FINALIZING,
+            ),
+        ))
+        assert result.job.state.value == "completed"
+        assert {artifact.type for artifact in result.job.artifacts} >= {
+            ArtifactType.SOURCE_VIDEO, ArtifactType.SOURCE_AUDIO,
+            ArtifactType.SOURCE_TRANSCRIPT, ArtifactType.TRANSLATED_TRANSCRIPT,
+            ArtifactType.SUBTITLE, ArtifactType.DUBBED_AUDIO, ArtifactType.FINAL_VIDEO,
+        }
+        assert all(artifact.size is not None and Path(artifact.reference).is_file() for artifact in result.job.artifacts)
+        assert all(
+            artifact.size and Path(artifact.reference).is_file()
+            for artifact in result.job.artifacts
+            if artifact.type in {ArtifactType.SOURCE_VIDEO, ArtifactType.SOURCE_AUDIO, ArtifactType.DUBBED_AUDIO, ArtifactType.FINAL_VIDEO}
+        )
     finally:
         workspace.cleanup()

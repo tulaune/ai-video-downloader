@@ -9,17 +9,34 @@ from server.app.downloader import SingleVideoDownloader
 from server.app.jobs.manager import JobManager
 from server.app.pipeline import DEFAULT_PIPELINE_STAGES, PipelineCoordinator
 from server.app.pipeline.stages import Phase0StageServices, build_phase0_handlers
-from server.app.providers import FasterWhisperProvider, OpenAICompatibleTranslationProvider, VbeeProvider
+from server.app.providers import (
+    FasterWhisperProvider,
+    LocalMockTranslationProvider,
+    LocalMockTtsProvider,
+    OpenAICompatibleTranslationProvider,
+    VbeeProvider,
+)
 from server.app.security import ProviderCredentials
 
 router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
 def _build_phase0_coordinator(credentials: ProviderCredentials | None) -> PipelineCoordinator:
     request_credentials = credentials or ProviderCredentials(provider="openai", fields={})
+    translator = (
+        OpenAICompatibleTranslationProvider(request_credentials)
+        if credentials is not None and credentials.provider in {"openai", "openai-compatible"}
+        else LocalMockTranslationProvider()
+    )
+    tts = (
+        VbeeProvider(credentials=credentials)
+        if credentials is not None and credentials.provider == "vbee"
+        else LocalMockTtsProvider()
+    )
     services = Phase0StageServices(
         downloader=SingleVideoDownloader(),
-        transcriber=FasterWhisperProvider(),
-        translator=OpenAICompatibleTranslationProvider(request_credentials),
-        tts=VbeeProvider(credentials=credentials if credentials and credentials.provider == "vbee" else None),
+        transcriber=FasterWhisperProvider(model="tiny"),
+        translator=translator,
+        tts=tts,
+        voice=Voice(provider=tts.name, voice_id="fixture", display_name="Local fixture"),
     )
     return PipelineCoordinator(build_phase0_handlers(services))
 

@@ -11,6 +11,7 @@ from server.app.security import ProviderCredentials, ServiceError
 
 DEFAULT_PIPELINE_STAGES = (
     JobStage.ACQUIRING,
+    JobStage.EXTRACTING_AUDIO,
     JobStage.TRANSCRIBING,
     JobStage.TRANSLATING,
     JobStage.GENERATING_SUBTITLE,
@@ -20,6 +21,7 @@ DEFAULT_PIPELINE_STAGES = (
 )
 
 StageHandler = Callable[["PipelineContext"], Awaitable[None]]
+JobUpdate = Callable[[Job], Awaitable[None]]
 
 
 @dataclass
@@ -63,6 +65,7 @@ class PipelineCoordinator:
         voice: Voice | None = None,
         options: dict[str, Any] | None = None,
         existing_artifacts: Sequence[Artifact] = (),
+        on_update: JobUpdate | None = None,
     ) -> PipelineResult:
         stages = self._validate_stages(requested_stages)
         now = datetime.now(timezone.utc)
@@ -109,6 +112,8 @@ class PipelineCoordinator:
                 "updated_at": datetime.now(timezone.utc),
                 "artifacts": context.artifacts,
             })
+            if on_update is not None:
+                await on_update(job)
             handler = self._handlers.get(stage)
             if handler is None:
                 return self._failed(job, context, ServiceError(
@@ -128,6 +133,13 @@ class PipelineCoordinator:
                     technical_message=str(error),
                     retryable=True,
                 ))
+            job = job.model_copy(update={
+                "progress": (index + 1) / len(stages),
+                "updated_at": datetime.now(timezone.utc),
+                "artifacts": context.artifacts,
+            })
+            if on_update is not None:
+                await on_update(job)
 
         now = datetime.now(timezone.utc)
         job = job.model_copy(update={

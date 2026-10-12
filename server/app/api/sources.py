@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 from backend.crawler import crawl_single_url
 from server.app.domain.models import VideoSource
+from server.app.downloader.yt_dlp import YtDlpAdapter
 from server.app.security import ServiceError, validate_public_http_url
 
 router = APIRouter(prefix="/v1/sources", tags=["sources"])
@@ -25,16 +26,17 @@ class AnalyzeSourceResponse(BaseModel):
 Crawler = Callable[..., Awaitable[dict[str, Any] | None]]
 
 
-async def analyze_source(url: str, crawler: Crawler | None = None) -> AnalyzeSourceResponse:
+async def analyze_source(
+    url: str,
+    crawler: Crawler | None = None,
+    generic_adapter: YtDlpAdapter | None = None,
+) -> AnalyzeSourceResponse:
     crawler = crawler or crawl_single_url
     validate_public_http_url(url)
     parsed = urlsplit(url)
     if parsed.hostname not in {"douyin.com", "www.douyin.com"}:
-        raise ServiceError(
-            stage="analyzing",
-            error_code="unsupported_platform",
-            user_message="Nguồn video này chưa được hỗ trợ trong Phase 0.",
-        )
+        source = await (generic_adapter or YtDlpAdapter()).analyze(url)
+        return AnalyzeSourceResponse(source=source, capabilities=["download", "transcribe"])
 
     result = await crawler(url=url, headless=True)
     if not result:

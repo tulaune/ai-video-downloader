@@ -53,8 +53,16 @@ source remain separate Phase 0 tasks.
   `httpx` and `python-dotenv`.
 - Translation, SRT generation, and final FFmpeg composition still live in
   `.claude/skills/voice-over/SKILL.md` rather than reusable Python services.
-- Generic URL download is implemented by the Claude skill through yt-dlp;
-  the Python backend currently focuses on Douyin crawling/downloading.
+- The legacy CLI still focuses on Douyin crawling/downloading, while the
+  FastAPI backend now has a generic yt-dlp source adapter for public
+  single-video analysis and acquisition. The Claude skill remains preserved
+  as a separate orchestration path.
+- A local Mac development server can be started with
+  `./scripts/run_local_server.sh`; this does not require Cloud Run billing.
+- The default API job now runs the complete local-first stage chain:
+  acquire → extract audio → Faster Whisper `tiny` → local mock translation →
+  deterministic SRT → local FFmpeg TTS fixture → FFmpeg merge. Real provider
+  credentials remain request-scoped and opt-in.
 - The Poetry script points to `main:cli`, while the CLI is in
   `backend/cli.py`; this needs correction before relying on the package
   entrypoint.
@@ -65,15 +73,19 @@ source remain separate Phase 0 tasks.
 
 The Phase 0 branch now contains the FastAPI service, normalized domain and
 provider contracts, isolated job workspaces, stage-aware pipeline, Dockerfile,
-and Cloud Run experiment template. The local suite has 57 passing tests; two
+and Cloud Run experiment template. The local suite has 63 passing tests; two
 real-provider checks are opt-in and skipped by default.
 
 Verified locally after the Phase 0 implementation:
 
-- `backend/.venv/bin/python -m pytest -q`: 57 passed, 2 skipped, 1 known
+- `backend/.venv/bin/python -m pytest -q`: 63 passed, 2 skipped, 1 known
   Starlette/httpx deprecation warning.
+- `./scripts/check_phase0_local.sh`: repeatable local audit passed, including
+  tests, compilation, diff check, Graft freshness, health, and OpenAPI smoke.
 - A real `FasterWhisperProvider(model="tiny")` run completed against a
   0.5-second generated fixture without Claude orchestration or provider keys.
+- The explicit `extracting_audio` artifact is now passed into the Whisper
+  provider, avoiding the legacy transcript/index side effects for API jobs.
 - Uvicorn smoke: `/health` returned 200 and `/openapi.json` exposed the six
   expected Phase 0 routes.
 - Artifact reuse was exercised by rerunning the merge stage from contained

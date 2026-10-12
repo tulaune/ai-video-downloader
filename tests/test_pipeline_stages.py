@@ -94,3 +94,29 @@ def test_phase0_handlers_create_transcript_translation_and_subtitle_artifacts(tm
         ArtifactType.SUBTITLE,
         ArtifactType.DUBBED_AUDIO,
     }
+
+
+def test_phase0_handlers_extract_audio_before_transcription(tmp_path, monkeypatch):
+    async def fake_extract(video_path, audio_path):
+        audio_path.write_bytes(b"wav")
+        return audio_path
+
+    monkeypatch.setattr("server.app.pipeline.stages.extract_audio", fake_extract)
+    services = Phase0StageServices(
+        downloader=FakeDownloader(), transcriber=FakeTranscriber(),
+        translator=FakeTranslator(), tts=FakeTts(),
+        voice=Voice(provider="test", voice_id="v1", display_name="Test"),
+    )
+    workspace = JobWorkspace.create(tmp_path)
+    try:
+        result = asyncio.run(PipelineCoordinator(build_phase0_handlers(services)).run(
+            VideoSource(url="https://www.douyin.com/video/1", platform="douyin", source_id="1"),
+            workspace,
+            requested_stages=(__import__("server.app.domain.models", fromlist=["JobStage"]).JobStage.ACQUIRING,
+                              __import__("server.app.domain.models", fromlist=["JobStage"]).JobStage.EXTRACTING_AUDIO,
+                              __import__("server.app.domain.models", fromlist=["JobStage"]).JobStage.TRANSCRIBING),
+        ))
+    finally:
+        workspace.cleanup()
+    assert result.job.state.value == "completed"
+    assert any(artifact.type == ArtifactType.SOURCE_AUDIO for artifact in result.job.artifacts)

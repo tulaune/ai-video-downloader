@@ -108,3 +108,18 @@ async def transcribe_video(
     await upsert_caption(aweme_id=vid_id, caption=caption)
     console.print("[green]Đã cập nhật index.csv[/green]")
     return result
+
+
+async def transcribe_audio(
+    audio_path: str,
+    model: str = "large-v3-turbo",
+    language: str | None = None,
+) -> dict:
+    """Transcribe an already extracted audio artifact without legacy side effects."""
+    path = Path(audio_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Không tìm thấy file: {audio_path}")
+    if not _check_ffmpeg():
+        raise RuntimeError("ffmpeg chưa cài. Chạy: brew install ffmpeg")
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _run_faster_whisper, str(path), model, language)

@@ -6,6 +6,7 @@ from backend.downloader import download_videos
 from server.app.domain.models import Artifact, ArtifactType, VideoSource
 from server.app.jobs import JobWorkspace
 from server.app.security import ServiceError
+from server.app.downloader.yt_dlp import YtDlpAdapter
 
 
 DownloadFunction = Callable[..., Awaitable[tuple[int, int]]]
@@ -21,11 +22,13 @@ class SingleVideoDownloader:
         downloader: DownloadFunction | None = None,
     ) -> Artifact:
         if source.platform != "douyin":
-            raise ServiceError(
-                stage="acquiring",
-                error_code="unsupported_platform",
-                user_message="Nguồn video này chưa được hỗ trợ tải ở Phase 0.",
-            )
+            if downloader is not None:
+                raise ServiceError(
+                    stage="acquiring",
+                    error_code="invalid_downloader_override",
+                    user_message="Generic source không nhận legacy downloader override.",
+                )
+            return await YtDlpAdapter().download(source, workspace)
         download_url = source.metadata.get("download_url")
         if not source.source_id or not isinstance(download_url, str) or not download_url:
             raise ServiceError(

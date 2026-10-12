@@ -6,7 +6,7 @@ from typing import Any
 
 from server.app.domain.models import Artifact, ArtifactType, JobStage, Transcript, Voice
 from server.app.downloader import SingleVideoDownloader
-from server.app.media import merge_audio
+from server.app.media import extract_audio, merge_audio
 from server.app.pipeline.coordinator import PipelineContext, StageHandler
 from server.app.providers.contracts import TranscriptionProvider, TranslationProvider, TtsProvider
 from server.app.subtitle import generate_srt
@@ -45,7 +45,9 @@ def build_phase0_handlers(services: Phase0StageServices) -> dict[JobStage, Stage
         context.add_artifact(artifact)
 
     async def transcribe(context: PipelineContext) -> None:
-        source = _find_artifact(context, ArtifactType.SOURCE_VIDEO)
+        source = _find_artifact(context, ArtifactType.SOURCE_AUDIO)
+        if source is None:
+            source = _find_artifact(context, ArtifactType.SOURCE_VIDEO)
         if source is None:
             raise ServiceError("transcribing", "source_artifact_missing", "Thiếu video nguồn để transcribe.")
         transcript = await services.transcriber.transcribe(source, context.options)
@@ -55,6 +57,18 @@ def build_phase0_handlers(services: Phase0StageServices) -> dict[JobStage, Stage
             ArtifactType.SOURCE_TRANSCRIPT,
             "transcript.json",
             transcript.model_dump(mode="json"),
+        ))
+
+    async def extract(context: PipelineContext) -> None:
+        source = _find_artifact(context, ArtifactType.SOURCE_VIDEO)
+        if source is None:
+            raise ServiceError("extracting_audio", "source_artifact_missing", "Thiếu video nguồn để extract audio.")
+        path = context.workspace.path("source.wav")
+        await extract_audio(source.reference, path)
+        context.add_artifact(Artifact(
+            id=f"source-audio-{context.source.source_id or 'job'}",
+            type=ArtifactType.SOURCE_AUDIO, reference=str(path), mime_type="audio/wav",
+            size=path.stat().st_size, created_at=datetime.now(timezone.utc),
         ))
 
     async def translate(context: PipelineContext) -> None:
@@ -124,6 +138,7 @@ def build_phase0_handlers(services: Phase0StageServices) -> dict[JobStage, Stage
 
     return {
         JobStage.ACQUIRING: acquire,
+        JobStage.EXTRACTING_AUDIO: extract,
         JobStage.TRANSCRIBING: transcribe,
         JobStage.TRANSLATING: translate,
         JobStage.GENERATING_SUBTITLE: subtitle,

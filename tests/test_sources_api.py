@@ -27,14 +27,30 @@ def test_analyze_douyin_source_returns_normalized_metadata(monkeypatch):
     assert response.json()["capabilities"] == ["download", "transcribe"]
 
 
-def test_analyze_rejects_unsupported_platform():
+def test_analyze_generic_source_uses_yt_dlp_adapter(monkeypatch):
+    class FakeAdapter:
+        @staticmethod
+        def supports_url(url):
+            return True
+
+        async def analyze(self, url):
+            from server.app.domain.models import VideoSource
+
+            return VideoSource(
+                url=url,
+                platform="youtube",
+                source_id="123",
+                title="Foreign video",
+            )
+
+    monkeypatch.setattr(sources, "YtDlpAdapter", lambda: FakeAdapter())
     response = TestClient(app).post(
         "/v1/sources/analyze",
         json={"url": "https://www.youtube.com/watch?v=123"},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"]["error_code"] == "unsupported_platform"
+    assert response.status_code == 200
+    assert response.json()["source"]["platform"] == "youtube"
 
 
 def test_analyze_rejects_extra_request_fields():

@@ -83,6 +83,11 @@ class JobManager:
             raise KeyError(job_id)
         source, workspace, stages, target_language, coordinator, credentials, voice, options = pending
         try:
+            async def persist_update(updated_job: Job) -> None:
+                current = self.repository.get(job_id)
+                if current is None or current.state not in {JobState.CANCELLED, JobState.COMPLETED}:
+                    self.repository.update(updated_job)
+
             result: PipelineResult = await coordinator.run(
                 source,
                 workspace,
@@ -93,6 +98,7 @@ class JobManager:
                 options=options,
                 job_id=job_id,
                 cancel_event=self._cancel_events[job_id],
+                on_update=persist_update,
             )
             current = self.repository.get(job_id)
             if current and current.state == JobState.CANCELLED:
