@@ -79,5 +79,7 @@ def get_row(aweme_id: str) -> dict | None:
 
 
 def get_aweme_id_from_path(path: str) -> str | None:
-    parts = Path(path).stem.rsplit("__", 1)
+    path_obj = Path(path)
+    name = path_obj.parent.name if path_obj.name == "index.mp4" else path_obj.stem
+    parts = name.rsplit("__", 1)
     return parts[-1] if len(parts) == 2 else None

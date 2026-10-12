@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+backend/.venv
+__pycache__
+*.py[cod]
+.env
+.env.*
+downloads
+index.csv
+graft
+tests
+docs
+*.log

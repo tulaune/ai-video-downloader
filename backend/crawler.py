@@ -2,9 +2,8 @@
 Douyin crawler: Playwright intercept XHR/fetch, tìm aweme_list trong response.
 """
 import json
-import re
 from typing import AsyncGenerator
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qsl, parse_qs, urlencode, urlparse, urlsplit, urlunsplit
 
 from playwright.async_api import async_playwright, Response
 from rich.console import Console
@@ -56,8 +55,13 @@ def _get_download_url(video: dict) -> str | None:
         urls = addr.get("url_list") or []
         if urls:
             url = urls[0]
-            url = re.sub(r"[?&](logo_name|watermark|wm_url)[^&]*", "", url)
-            return url
+            parts = urlsplit(url)
+            query = urlencode([
+                (key, value)
+                for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                if key not in {"logo_name", "watermark", "wm_url"}
+            ])
+            return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
     return None
 
 

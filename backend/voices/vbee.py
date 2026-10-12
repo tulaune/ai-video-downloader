@@ -21,6 +21,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Mapping
 
 import httpx
 
@@ -40,9 +41,10 @@ def _cfg(key: str, default: str = "") -> str:
     return os.environ.get(key, default)
 
 
-def _headers() -> dict:
-    token  = _cfg("VBEE_TOKEN")
-    app_id = _cfg("VBEE_APP_ID")
+def _headers(credentials: Mapping[str, str] | None = None) -> dict:
+    values = credentials or {}
+    token  = values.get("token") or _cfg("VBEE_TOKEN")
+    app_id = values.get("app_id") or _cfg("VBEE_APP_ID")
     if not token or not app_id:
         raise EnvironmentError("Missing VBEE_TOKEN / VBEE_APP_ID env vars.")
     return {
@@ -54,7 +56,7 @@ def _headers() -> dict:
 
 # ── Sync (realtime) ────────────────────────────────────────────────────────
 
-async def _sync_tts(text: str, output: str, voice_code: str, speed: float, log) -> dict:
+async def _sync_tts(text: str, output: str, voice_code: str, speed: float, log, credentials=None) -> dict:
     log(f"[vbee/sync] {len(text)} chars → {output} (voice={voice_code}, speed={speed})")
 
     payload = {
@@ -67,7 +69,7 @@ async def _sync_tts(text: str, output: str, voice_code: str, speed: float, log) 
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(f"{BASE_URL}/v1/tts", json=payload, headers=_headers())
+        resp = await client.post(f"{BASE_URL}/v1/tts", json=payload, headers=_headers(credentials))
 
     if resp.status_code != 200:
         raise RuntimeError(f"Vbee sync [{resp.status_code}]: {resp.text[:500]}")
@@ -84,7 +86,7 @@ async def _sync_tts(text: str, output: str, voice_code: str, speed: float, log) 
 
 # ── Async (batch + poll) ───────────────────────────────────────────────────
 
-async def _async_tts(text: str, output: str, voice_code: str, speed: float, log) -> dict:
+async def _async_tts(text: str, output: str, voice_code: str, speed: float, log, credentials=None) -> dict:
     log(f"[vbee/async] {len(text)} chars → {output} (voice={voice_code}, speed={speed})")
 
     payload = {
@@ -98,7 +100,7 @@ async def _async_tts(text: str, output: str, voice_code: str, speed: float, log)
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(f"{BASE_URL}/v1/tts", json=payload, headers=_headers())
+        resp = await client.post(f"{BASE_URL}/v1/tts", json=payload, headers=_headers(credentials))
 
     data = resp.json()
     if resp.status_code >= 300 or "requestId" not in data:
@@ -113,7 +115,7 @@ async def _async_tts(text: str, output: str, voice_code: str, speed: float, log)
     async with httpx.AsyncClient(timeout=30) as client:
         while time.monotonic() < deadline:
             await asyncio.sleep(POLL_INTERVAL)
-            r = await client.get(f"{BASE_URL}/v1/tts/requests/{request_id}", headers=_headers())
+            r = await client.get(f"{BASE_URL}/v1/tts/requests/{request_id}", headers=_headers(credentials))
             result = r.json()
             status = result.get("status", "?")
             log(f"[vbee/async] status={status}")
@@ -149,6 +151,7 @@ async def run_tts(
     output: str | None = None,
     voice_code: str | None = None,
     speed: float | None = None,
+    credentials: Mapping[str, str] | None = None,
     log=None,
 ) -> dict:
     """
@@ -178,9 +181,9 @@ async def run_tts(
         mode = "sync"
 
     if mode == "sync":
-        return await _sync_tts(text.strip(), out_file, voice, spd, _log)
+        return await _sync_tts(text.strip(), out_file, voice, spd, _log, credentials)
     else:
-        return await _async_tts(text.strip(), out_file, voice, spd, _log)
+        return await _async_tts(text.strip(), out_file, voice, spd, _log, credentials)
 
 
 async def tts_to_file(
